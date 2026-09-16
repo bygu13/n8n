@@ -1,0 +1,527 @@
+{
+  "name": "Dainuie – Telegram Social Media Manager",
+  "id": "dainuie-telegram-manager",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300],
+      "webhookId": "dainuie-telegram-trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "ALLOWED_CHAT_ID",
+              "value": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+              "type": "string"
+            },
+            {
+              "id": "c2",
+              "name": "BRAND_NAME",
+              "value": "dainuie.online",
+              "type": "string"
+            },
+            {
+              "id": "c3",
+              "name": "BRAND_SITE",
+              "value": "https://dainuie.online",
+              "type": "string"
+            },
+            {
+              "id": "c4",
+              "name": "BRAND_DESCRIPTION",
+              "value": "REPLACE: one or two sentences describing what dainuie.online sells/does, its audience and its tone of voice.",
+              "type": "string"
+            },
+            {
+              "id": "c5",
+              "name": "CLOUDINARY_CLOUD_NAME",
+              "value": "REPLACE_WITH_CLOUDINARY_CLOUD_NAME",
+              "type": "string"
+            },
+            {
+              "id": "c6",
+              "name": "CLOUDINARY_UPLOAD_PRESET",
+              "value": "REPLACE_WITH_UNSIGNED_UPLOAD_PRESET",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "auth1",
+              "leftValue": "={{ String($json.message.chat.id) }}",
+              "rightValue": "={{ $json.ALLOWED_CHAT_ID }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Is Authorized?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "=⛔ Not authorized.\n\nYour Telegram chat id is: {{ $json.message.chat.id }}\nPaste it into the ALLOWED_CHAT_ID field of the Config node in n8n to enable this bot.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Reply Unauthorized",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [660, 520]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r1",
+                    "leftValue": "={{ Array.isArray($json.message.photo) }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "photo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r2",
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "text"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Message Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [660, 200]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.photo.last().file_id }}",
+        "download": true
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Download Telegram Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 40]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.cloudinary.com/v1_1/{{ $('Config').item.json.CLOUDINARY_CLOUD_NAME }}/image/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "upload_preset",
+              "value": "={{ $('Config').item.json.CLOUDINARY_UPLOAD_PRESET }}"
+            },
+            {
+              "name": "folder",
+              "value": "dainuie/uploads"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Upload Photo to Cloudinary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 40]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "p1",
+              "name": "chat_id",
+              "value": "={{ String($('Telegram Trigger').item.json.message.chat.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "p2",
+              "name": "text",
+              "value": "={{ $('Telegram Trigger').item.json.message.caption || 'I sent you a photo.' }}\n\n[SYSTEM NOTE: the user attached their own image. Public URL: {{ $json.secure_url }} ({{ $json.width }}x{{ $json.height }}). Use this URL as image_url when publishing unless the user asks you to generate a new image instead.]",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "Build Input (photo)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [1340, 40]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "t1",
+              "name": "chat_id",
+              "value": "={{ String($json.message.chat.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "t2",
+              "name": "text",
+              "value": "={{ $json.message.text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Build Input (text)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "I can only work with text messages and photos (with an optional caption) for now. Tell me what you want to post, or send a photo with a caption.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Reply Unsupported",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [900, 520]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "options": {
+          "systemMessage": "=You are the social media manager of {{ $('Config').first().json.BRAND_NAME }} ({{ $('Config').first().json.BRAND_SITE }}). Brand brief: {{ $('Config').first().json.BRAND_DESCRIPTION }}\nToday is {{ $now.toFormat('yyyy-MM-dd') }}. You talk to the owner over Telegram. Always answer in the language the owner writes in (Romanian or English), concisely, with no Markdown tables.\n\nYOUR JOB\n1. Understand what the owner wants to post (topic, offer, product, mood, target platforms, any links or dates). Ask at most 1-2 short questions if something essential is missing; otherwise propose something.\n2. Curate and write the copy. Produce a tailored version per platform:\n   - Facebook: 1-3 short paragraphs, conversational, one clear call to action, at most 3 hashtags, link to the site when relevant.\n   - Instagram: strong first line (hook), line breaks, emojis in moderation, 8-15 relevant hashtags at the end. No clickable links (say 'link in bio').\n   - TikTok: short punchy caption (under 150 characters) plus 3-5 hashtags. TikTok always needs a VIDEO.\n   Show the drafts to the owner and refine them until they say they are happy.\n3. Visuals. Propose a visual concept. When the owner agrees, call the generate_image tool (square for Facebook/Instagram feed, portrait only for stories) and/or the generate_video tool (vertical 9:16, 5 or 10 seconds) for TikTok and Instagram Reels. Write detailed, concrete prompts: subject, setting, lighting, style, colors, mood, no text in the image unless asked. The tools send the preview to the owner on Telegram themselves; after calling them just ask if the visual is approved or should be regenerated.\n   If the owner attached their own photo (see SYSTEM NOTE), use that URL instead of generating an image unless they ask otherwise.\n4. Publish ONLY after the owner explicitly approves the final text AND the visual (words like 'post it', 'publish', 'go', 'publică', 'postează', 'da, trimite'). Then call publish_post exactly once with the final per-platform captions, the comma-separated platform list, the image_url and/or video_url. Never invent URLs: only pass URLs returned by the tools or provided in a SYSTEM NOTE.\n5. The publish_post tool already sends a results card to the owner on Telegram. After it returns, reply with one short line only, mentioning anything that failed and what you suggest.\n\nRULES\n- Instagram needs an image or a video. TikTok needs a video. Facebook can be text only, image or video.\n- If the owner asks to 'post on all accounts', target facebook, instagram and tiktok (TikTok only if there is or will be a video; otherwise tell them and offer to generate one).\n- Never publish without explicit approval. Never call publish_post twice for the same post unless the owner asks to retry.\n- Keep your messages short and skimmable. Use plain text; you may use **bold** for labels like **Facebook** / **Instagram** / **TikTok**.\n- If a tool returns an error, explain it plainly and propose the fix or a retry.",
+          "maxIterations": 15
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "Social Media Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [1620, 300]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "id",
+          "value": "claude-opus-5"
+        },
+        "options": {
+          "maxTokensToSample": 4096,
+          "temperature": 0.7
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000012",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [1440, 540]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ 'dainuie-tg-' + $('Telegram Trigger').first().json.message.chat.id }}",
+        "contextWindowLength": 30
+      },
+      "id": "a1000000-0000-4000-8000-000000000013",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [1620, 540]
+    },
+    {
+      "parameters": {
+        "name": "generate_image",
+        "description": "Generates a brand image with AI from a detailed prompt, uploads it to a public URL and sends a preview to the owner on Telegram. Returns { image_url }. Use aspect 'square' (1:1) for Facebook and Instagram feed posts, 'portrait' (2:3) for stories, 'landscape' (3:2) for wide banners.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "dainuie-gen-image"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "prompt": "={{ $fromAI('prompt', 'Detailed visual description of the image to generate: subject, setting, lighting, style, colors, mood. Do not ask for text inside the image unless requested.', 'string') }}",
+            "aspect": "={{ $fromAI('aspect', \"One of: square, portrait, landscape. Use 'square' for Facebook and Instagram feed posts.\", 'string') }}",
+            "chat_id": "={{ String($('Telegram Trigger').first().json.message.chat.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "prompt", "displayName": "prompt", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "aspect", "displayName": "aspect", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "chat_id", "displayName": "chat_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "generate_image",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [1800, 540]
+    },
+    {
+      "parameters": {
+        "name": "generate_video",
+        "description": "Generates a short vertical (9:16) AI video from a detailed prompt, uploads it to a public URL and sends a preview to the owner on Telegram. Takes 1-4 minutes. Returns { video_url }. Required for TikTok and Instagram Reels.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "dainuie-gen-video"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "prompt": "={{ $fromAI('prompt', 'Detailed description of the video: subject, action/camera movement, setting, lighting, style, mood. Vertical 9:16 framing.', 'string') }}",
+            "duration": "={{ $fromAI('duration', \"Video length in seconds as a string: '5' or '10'. Default '5'.\", 'string') }}",
+            "chat_id": "={{ String($('Telegram Trigger').first().json.message.chat.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "prompt", "displayName": "prompt", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "duration", "displayName": "duration", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "chat_id", "displayName": "chat_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "generate_video",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [1980, 540]
+    },
+    {
+      "parameters": {
+        "name": "publish_post",
+        "description": "Publishes the approved post to the dainuie.online accounts. Call ONLY after the owner explicitly approved the final text and visual. Pass platforms as a comma-separated list from: facebook, instagram, tiktok. Provide a caption per selected platform. Instagram needs image_url or video_url; TikTok needs video_url. Sends a results card to the owner on Telegram and returns per-platform results with links or errors.",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "dainuie-publish"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "platforms": "={{ $fromAI('platforms', 'Comma-separated list of target platforms: facebook, instagram, tiktok', 'string') }}",
+            "caption_facebook": "={{ $fromAI('caption_facebook', 'Final Facebook post text (empty if facebook is not targeted)', 'string') }}",
+            "caption_instagram": "={{ $fromAI('caption_instagram', 'Final Instagram caption including hashtags (empty if instagram is not targeted)', 'string') }}",
+            "caption_tiktok": "={{ $fromAI('caption_tiktok', 'Final TikTok caption with hashtags, under 150 characters (empty if tiktok is not targeted)', 'string') }}",
+            "image_url": "={{ $fromAI('image_url', 'Public image URL returned by generate_image or from the owner\\'s uploaded photo. Empty if none.', 'string') }}",
+            "video_url": "={{ $fromAI('video_url', 'Public video URL returned by generate_video. Empty if none.', 'string') }}",
+            "chat_id": "={{ String($('Telegram Trigger').first().json.message.chat.id) }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "platforms", "displayName": "platforms", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "caption_facebook", "displayName": "caption_facebook", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "caption_instagram", "displayName": "caption_instagram", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "caption_tiktok", "displayName": "caption_tiktok", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "image_url", "displayName": "image_url", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "video_url", "displayName": "video_url", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false },
+            { "id": "chat_id", "displayName": "chat_id", "required": false, "defaultMatch": false, "display": true, "canBeUsedToMatch": true, "type": "string", "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000016",
+      "name": "publish_post",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [2160, 540]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert the agent's light Markdown into Telegram-safe HTML and split long replies.\nconst raw = String($input.first().json.output ?? '').trim() || '…';\nconst esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nlet t = esc(raw)\n  .replace(/^#{1,6}\\s+(.+)$/gm, '<b>$1</b>')\n  .replace(/\\*\\*(.+?)\\*\\*/gs, '<b>$1</b>')\n  .replace(/`([^`\\n]+)`/g, '<code>$1</code>')\n  .replace(/^\\s*[-*]\\s+/gm, '• ');\n\nconst LIMIT = 3900;\nconst chunks = [];\nwhile (t.length > LIMIT) {\n  let cut = t.lastIndexOf('\\n\\n', LIMIT);\n  if (cut < LIMIT / 2) cut = t.lastIndexOf('\\n', LIMIT);\n  if (cut < LIMIT / 2) cut = LIMIT;\n  chunks.push(t.slice(0, cut));\n  t = t.slice(cut).trimStart();\n}\nchunks.push(t);\nreturn chunks.map((text) => ({ json: { text } }));"
+      },
+      "id": "a1000000-0000-4000-8000-000000000017",
+      "name": "Format for Telegram",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').first().json.message.chat.id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000018",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2220, 300]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Is Authorized?", "type": "main", "index": 0 }]]
+    },
+    "Is Authorized?": {
+      "main": [
+        [{ "node": "Message Type", "type": "main", "index": 0 }],
+        [{ "node": "Reply Unauthorized", "type": "main", "index": 0 }]
+      ]
+    },
+    "Message Type": {
+      "main": [
+        [{ "node": "Download Telegram Photo", "type": "main", "index": 0 }],
+        [{ "node": "Build Input (text)", "type": "main", "index": 0 }],
+        [{ "node": "Reply Unsupported", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download Telegram Photo": {
+      "main": [[{ "node": "Upload Photo to Cloudinary", "type": "main", "index": 0 }]]
+    },
+    "Upload Photo to Cloudinary": {
+      "main": [[{ "node": "Build Input (photo)", "type": "main", "index": 0 }]]
+    },
+    "Build Input (photo)": {
+      "main": [[{ "node": "Social Media Agent", "type": "main", "index": 0 }]]
+    },
+    "Build Input (text)": {
+      "main": [[{ "node": "Social Media Agent", "type": "main", "index": 0 }]]
+    },
+    "Social Media Agent": {
+      "main": [[{ "node": "Format for Telegram", "type": "main", "index": 0 }]]
+    },
+    "Format for Telegram": {
+      "main": [[{ "node": "Send Reply", "type": "main", "index": 0 }]]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [[{ "node": "Social Media Agent", "type": "ai_languageModel", "index": 0 }]]
+    },
+    "Conversation Memory": {
+      "ai_memory": [[{ "node": "Social Media Agent", "type": "ai_memory", "index": 0 }]]
+    },
+    "generate_image": {
+      "ai_tool": [[{ "node": "Social Media Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "generate_video": {
+      "ai_tool": [[{ "node": "Social Media Agent", "type": "ai_tool", "index": 0 }]]
+    },
+    "publish_post": {
+      "ai_tool": [[{ "node": "Social Media Agent", "type": "ai_tool", "index": 0 }]]
+    }
+  }
+}

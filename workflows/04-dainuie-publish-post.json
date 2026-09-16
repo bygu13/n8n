@@ -1,0 +1,1838 @@
+{
+  "name": "Dainuie – Publish Post (tool)",
+  "id": "dainuie-publish",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "pinData": {},
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "platforms",
+              "type": "string"
+            },
+            {
+              "name": "caption_facebook",
+              "type": "string"
+            },
+            {
+              "name": "caption_instagram",
+              "type": "string"
+            },
+            {
+              "name": "caption_tiktok",
+              "type": "string"
+            },
+            {
+              "name": "image_url",
+              "type": "string"
+            },
+            {
+              "name": "video_url",
+              "type": "string"
+            },
+            {
+              "name": "chat_id",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000001",
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2-0",
+              "name": "GRAPH_API_VERSION",
+              "value": "v23.0",
+              "type": "string"
+            },
+            {
+              "id": "2-1",
+              "name": "FACEBOOK_PAGE_ID",
+              "value": "REPLACE_WITH_FACEBOOK_PAGE_ID",
+              "type": "string"
+            },
+            {
+              "id": "2-2",
+              "name": "INSTAGRAM_USER_ID",
+              "value": "REPLACE_WITH_INSTAGRAM_BUSINESS_ACCOUNT_ID",
+              "type": "string"
+            },
+            {
+              "id": "2-3",
+              "name": "TIKTOK_CLIENT_KEY",
+              "value": "REPLACE_WITH_TIKTOK_CLIENT_KEY",
+              "type": "string"
+            },
+            {
+              "id": "2-4",
+              "name": "TIKTOK_CLIENT_SECRET",
+              "value": "REPLACE_WITH_TIKTOK_CLIENT_SECRET",
+              "type": "string"
+            },
+            {
+              "id": "2-5",
+              "name": "TIKTOK_REFRESH_TOKEN",
+              "value": "REPLACE_WITH_TIKTOK_REFRESH_TOKEN",
+              "type": "string"
+            },
+            {
+              "id": "2-6",
+              "name": "TIKTOK_PRIVACY_LEVEL",
+              "value": "SELF_ONLY",
+              "type": "string"
+            },
+            {
+              "id": "2-7",
+              "name": "TIKTOK_USERNAME",
+              "value": "REPLACE_WITH_TIKTOK_HANDLE_WITHOUT_AT",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000002",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expand the tool call into one work item per platform and validate it.\nconst input = $input.first().json;\nconst configured = (v) => typeof v === 'string' && v.trim() !== '' && !v.startsWith('REPLACE');\nconst isUrl = (u) => typeof u === 'string' && /^https?:\\/\\//i.test(u.trim());\nconst platforms = [...new Set(String(input.platforms || '')\n  .toLowerCase().split(/[,\\s;]+/).map((s) => s.trim()).filter(Boolean))];\nconst image_url = isUrl(input.image_url) ? input.image_url.trim() : '';\nconst video_url = isUrl(input.video_url) ? input.video_url.trim() : '';\nconst out = [];\n\nif (platforms.length === 0) {\n  out.push({ platform: 'none', caption: '', image_url, video_url,\n    error: 'No platforms given. Expected a comma-separated list: facebook, instagram, tiktok.' });\n}\n\nfor (const platform of platforms) {\n  const item = { platform, caption: '', image_url, video_url, error: '' };\n  if (platform === 'facebook') {\n    item.caption = String(input.caption_facebook || '').trim();\n    if (!configured(input.FACEBOOK_PAGE_ID)) item.error = 'FACEBOOK_PAGE_ID is not set in the Config node of the publish workflow.';\n    else if (!item.caption && !image_url && !video_url) item.error = 'Facebook post has neither text nor media.';\n  } else if (platform === 'instagram') {\n    item.caption = String(input.caption_instagram || '').trim().slice(0, 2200);\n    if (!configured(input.INSTAGRAM_USER_ID)) item.error = 'INSTAGRAM_USER_ID is not set in the Config node of the publish workflow.';\n    else if (!image_url && !video_url) item.error = 'Instagram needs an image_url or a video_url.';\n  } else if (platform === 'tiktok') {\n    item.caption = String(input.caption_tiktok || '').trim().slice(0, 2200);\n    if (!configured(input.TIKTOK_CLIENT_KEY) || !configured(input.TIKTOK_CLIENT_SECRET)) item.error = 'TikTok client key/secret are not set in the Config node of the publish workflow.';\n    else if (!video_url) item.error = 'TikTok needs a video_url. Generate a video first.';\n  } else {\n    item.error = `Unknown platform \"${platform}\". Use facebook, instagram or tiktok.`;\n  }\n  out.push(item);\n}\n\nreturn out.map((json) => ({ json, pairedItem: { item: 0 } }));"
+      },
+      "id": "d4000000-0000-4000-8000-000000000003",
+      "name": "Plan Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000004",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        660,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.error }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "skipped"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "facebook",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "facebook"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "instagram",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "instagram"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s4",
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "tiktok",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "tiktok"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000005",
+      "name": "Route by Platform",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        900,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6-0",
+              "name": "platform",
+              "value": "={{ $json.platform }}",
+              "type": "string"
+            },
+            {
+              "id": "6-1",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "6-2",
+              "name": "link",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "6-3",
+              "name": "error",
+              "value": "={{ $json.error }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000006",
+      "name": "Skipped",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1140,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f1",
+                    "leftValue": "={{ $json.video_url }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "video"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "f2",
+                    "leftValue": "={{ $json.image_url }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "image"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000007",
+      "name": "FB Media Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1140,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('Config').first().json.FACEBOOK_PAGE_ID }}/videos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { file_url: $('Loop Over Items').item.json.video_url, description: $('Loop Over Items').item.json.caption } }}"
+      },
+      "id": "d4000000-0000-4000-8000-000000000008",
+      "name": "FB Post Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('Config').first().json.FACEBOOK_PAGE_ID }}/photos",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { url: $('Loop Over Items').item.json.image_url, message: $('Loop Over Items').item.json.caption } }}"
+      },
+      "id": "d4000000-0000-4000-8000-000000000009",
+      "name": "FB Post Photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        440
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('Config').first().json.FACEBOOK_PAGE_ID }}/feed",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { message: $('Loop Over Items').item.json.caption } }}"
+      },
+      "id": "d4000000-0000-4000-8000-000000000010",
+      "name": "FB Post Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1400,
+        580
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "11-0",
+              "name": "platform",
+              "value": "facebook",
+              "type": "string"
+            },
+            {
+              "id": "11-1",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "11-2",
+              "name": "link",
+              "value": "={{ $json.post_id ? 'https://www.facebook.com/' + $json.post_id : (String($json.id || '').includes('_') ? 'https://www.facebook.com/' + $json.id : 'https://www.facebook.com/' + $('Config').first().json.FACEBOOK_PAGE_ID + '/videos/' + $json.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "11-3",
+              "name": "error",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000011",
+      "name": "FB Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1660,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "12-0",
+              "name": "platform",
+              "value": "facebook",
+              "type": "string"
+            },
+            {
+              "id": "12-1",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "12-2",
+              "name": "link",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "12-3",
+              "name": "error",
+              "value": "={{ (() => { const j = $json || {}; const e = j.error; if (e && !(typeof e === 'object' && e.code === 'ok')) { if (typeof e === 'string') return e; return [e.message, e.description, (e.code ? 'code ' + e.code : '')].filter(Boolean).join(' – ') || JSON.stringify(e); } if (j.data && j.data.fail_reason) return 'TikTok: ' + j.data.fail_reason + ' (status ' + j.data.status + ')'; if (j.data && j.data.status) return 'TikTok did not finish processing in time (status ' + j.data.status + ').'; if (j.status_code) return 'Instagram container status: ' + j.status_code + (j.status ? ' – ' + j.status : ''); return 'Timed out waiting for the platform to process the media.'; })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000012",
+      "name": "FB Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('Config').first().json.INSTAGRAM_USER_ID }}/media",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Loop Over Items').item.json.video_url ? { media_type: 'REELS', video_url: $('Loop Over Items').item.json.video_url, caption: $('Loop Over Items').item.json.caption, share_to_feed: true } : { image_url: $('Loop Over Items').item.json.image_url, caption: $('Loop Over Items').item.json.caption } }}"
+      },
+      "id": "d4000000-0000-4000-8000-000000000013",
+      "name": "IG Create Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        820
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "id": "d4000000-0000-4000-8000-000000000014",
+      "name": "IG Wait 10s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1360,
+        820
+      ],
+      "webhookId": "dainuie-ig-wait"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('IG Create Container').item.json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "status_code,status"
+            }
+          ]
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000015",
+      "name": "IG Check Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        820
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ig1",
+              "leftValue": "={{ $json.status_code }}",
+              "rightValue": "FINISHED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000016",
+      "name": "IG Ready?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        820
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ig2",
+              "leftValue": "={{ ['ERROR', 'EXPIRED'].includes($json.status_code) || $runIndex >= 18 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000017",
+      "name": "IG Failed or Timed Out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $('Config').first().json.INSTAGRAM_USER_ID }}/media_publish",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { creation_id: $('IG Create Container').item.json.id } }}"
+      },
+      "id": "d4000000-0000-4000-8000-000000000018",
+      "name": "IG Publish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2020,
+        760
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/{{ $('Config').first().json.GRAPH_API_VERSION }}/{{ $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "facebookGraphApi",
+        "options": {
+          "timeout": 120000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "permalink"
+            }
+          ]
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000019",
+      "name": "IG Get Permalink",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        760
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "20-0",
+              "name": "platform",
+              "value": "instagram",
+              "type": "string"
+            },
+            {
+              "id": "20-1",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "20-2",
+              "name": "link",
+              "value": "={{ $json.permalink || ('https://www.instagram.com/ (media id ' + $('IG Publish').item.json.id + ')') }}",
+              "type": "string"
+            },
+            {
+              "id": "20-3",
+              "name": "error",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000020",
+      "name": "IG Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2460,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "21-0",
+              "name": "platform",
+              "value": "instagram",
+              "type": "string"
+            },
+            {
+              "id": "21-1",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "21-2",
+              "name": "link",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "21-3",
+              "name": "error",
+              "value": "={{ (() => { const j = $json || {}; const e = j.error; if (e && !(typeof e === 'object' && e.code === 'ok')) { if (typeof e === 'string') return e; return [e.message, e.description, (e.code ? 'code ' + e.code : '')].filter(Boolean).join(' – ') || JSON.stringify(e); } if (j.data && j.data.fail_reason) return 'TikTok: ' + j.data.fail_reason + ' (status ' + j.data.status + ')'; if (j.data && j.data.status) return 'TikTok did not finish processing in time (status ' + j.data.status + ').'; if (j.status_code) return 'Instagram container status: ' + j.status_code + (j.status ? ' – ' + j.status : ''); return 'Timed out waiting for the platform to process the media.'; })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000021",
+      "name": "IG Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2240,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// TikTok access tokens live 24h. We refresh before every post and remember the\n// latest refresh token in workflow static data (falls back to the Config seed).\nconst sd = $getWorkflowStaticData('global');\nconst cfg = $('Config').first().json;\nconst refreshToken = sd.tiktokRefreshToken || cfg.TIKTOK_REFRESH_TOKEN;\nif (!refreshToken || String(refreshToken).startsWith('REPLACE')) {\n  throw new Error('No TikTok refresh token. Complete the TikTok OAuth flow once and paste the refresh_token into TIKTOK_REFRESH_TOKEN in the Config node.');\n}\nreturn [{ json: { refresh_token: refreshToken }, pairedItem: { item: 0 } }];"
+      },
+      "id": "d4000000-0000-4000-8000-000000000022",
+      "name": "Resolve Refresh Token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1140,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/oauth/token/",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "client_key",
+              "value": "={{ $('Config').first().json.TIKTOK_CLIENT_KEY }}"
+            },
+            {
+              "name": "client_secret",
+              "value": "={{ $('Config').first().json.TIKTOK_CLIENT_SECRET }}"
+            },
+            {
+              "name": "grant_type",
+              "value": "refresh_token"
+            },
+            {
+              "name": "refresh_token",
+              "value": "={{ $json.refresh_token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000023",
+      "name": "Refresh TikTok Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1360,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const sd = $getWorkflowStaticData('global');\nconst r = $input.first().json;\nif (!r.access_token) {\n  throw new Error('TikTok token refresh failed: ' + (r.error_description || r.error || JSON.stringify(r)));\n}\nif (r.refresh_token) sd.tiktokRefreshToken = r.refresh_token;\nreturn [{ json: { access_token: r.access_token, open_id: r.open_id }, pairedItem: { item: 0 } }];"
+      },
+      "id": "d4000000-0000-4000-8000-000000000024",
+      "name": "Persist Tokens",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Loop Over Items').item.json.video_url }}",
+        "options": {
+          "timeout": 180000,
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000025",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// TikTok's init call needs the exact byte size; a single chunk is fine up to 64 MB.\nconst item = $input.first();\nif (!item.binary || !item.binary.data) throw new Error('Video download returned no file.');\nconst buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nif (buffer.length > 64 * 1024 * 1024) throw new Error('Video is larger than 64 MB; single-chunk TikTok upload is not possible.');\nreturn [{ json: { video_size: buffer.length }, binary: item.binary, pairedItem: { item: 0 } }];"
+      },
+      "id": "d4000000-0000-4000-8000-000000000026",
+      "name": "Measure Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2020,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/video/init/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Persist Tokens').item.json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { post_info: { title: String($('Loop Over Items').item.json.caption || '').slice(0, 2200), privacy_level: $('Config').first().json.TIKTOK_PRIVACY_LEVEL, disable_duet: false, disable_comment: false, disable_stitch: false, video_cover_timestamp_ms: 1000 }, source_info: { source: 'FILE_UPLOAD', video_size: $json.video_size, chunk_size: $json.video_size, total_chunk_count: 1 } } }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000027",
+      "name": "TikTok Init Upload",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2240,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate the init response and put the video bytes back on the item for the PUT upload.\nconst init = $input.first().json;\nif (init.error && init.error.code && init.error.code !== 'ok') {\n  throw new Error('TikTok init failed: ' + init.error.code + ' – ' + (init.error.message || ''));\n}\nif (!init.data || !init.data.upload_url) throw new Error('TikTok init returned no upload_url: ' + JSON.stringify(init));\nconst measured = $('Measure Video').first();\nreturn [{\n  json: { publish_id: init.data.publish_id, upload_url: init.data.upload_url, video_size: measured.json.video_size },\n  binary: measured.binary,\n  pairedItem: { item: 0 },\n}];"
+      },
+      "id": "d4000000-0000-4000-8000-000000000028",
+      "name": "Reattach Video",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2460,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.upload_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "video/mp4"
+            },
+            {
+              "name": "Content-Range",
+              "value": "=bytes 0-{{ $json.video_size - 1 }}/{{ $json.video_size }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000029",
+      "name": "TikTok Upload Bytes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2680,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "amount": 15,
+        "unit": "seconds"
+      },
+      "id": "d4000000-0000-4000-8000-000000000030",
+      "name": "TikTok Wait 15s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2900,
+        1300
+      ],
+      "webhookId": "dainuie-tiktok-wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Persist Tokens').item.json.access_token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json; charset=UTF-8"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { publish_id: $('Reattach Video').item.json.publish_id } }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000031",
+      "name": "TikTok Fetch Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3100,
+        1300
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tt1",
+              "leftValue": "={{ $json.data && $json.data.status }}",
+              "rightValue": "PUBLISH_COMPLETE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000032",
+      "name": "TikTok Published?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3320,
+        1300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tt2",
+              "leftValue": "={{ ($json.data && $json.data.status === 'FAILED') || $runIndex >= 24 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000033",
+      "name": "TikTok Failed or Timed Out?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3320,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "34-0",
+              "name": "platform",
+              "value": "tiktok",
+              "type": "string"
+            },
+            {
+              "id": "34-1",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "34-2",
+              "name": "link",
+              "value": "={{ (($json.data || {}).publicaly_available_post_id || [])[0] ? 'https://www.tiktok.com/@' + $('Config').first().json.TIKTOK_USERNAME + '/video/' + $json.data.publicaly_available_post_id[0] : 'https://www.tiktok.com/@' + $('Config').first().json.TIKTOK_USERNAME }}",
+              "type": "string"
+            },
+            {
+              "id": "34-3",
+              "name": "error",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000034",
+      "name": "TikTok Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3560,
+        1240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "35-0",
+              "name": "platform",
+              "value": "tiktok",
+              "type": "string"
+            },
+            {
+              "id": "35-1",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "35-2",
+              "name": "link",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "35-3",
+              "name": "error",
+              "value": "={{ (() => { const j = $json || {}; const e = j.error; if (e && !(typeof e === 'object' && e.code === 'ok')) { if (typeof e === 'string') return e; return [e.message, e.description, (e.code ? 'code ' + e.code : '')].filter(Boolean).join(' – ') || JSON.stringify(e); } if (j.data && j.data.fail_reason) return 'TikTok: ' + j.data.fail_reason + ' (status ' + j.data.status + ')'; if (j.data && j.data.status) return 'TikTok did not finish processing in time (status ' + j.data.status + ').'; if (j.status_code) return 'Instagram container status: ' + j.status_code + (j.status ? ' – ' + j.status : ''); return 'Timed out waiting for the platform to process the media.'; })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000035",
+      "name": "TikTok Failed",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3560,
+        1500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map((i) => i.json);\nconst esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst label = { facebook: 'Facebook', instagram: 'Instagram', tiktok: 'TikTok' };\nconst html = results.map((r) => {\n  const name = esc(label[r.platform] || r.platform);\n  if (r.ok) return `✅ <b>${name}</b>: ${r.link ? `<a href=\"${esc(r.link)}\">open post</a>` : 'published'}`;\n  return `❌ <b>${name}</b>: ${esc(r.error || 'unknown error')}`;\n});\nconst text = results.map((r) => `${r.ok ? 'OK' : 'FAILED'} ${r.platform}: ${r.ok ? (r.link || 'published') : r.error}`);\nconst ok = results.filter((r) => r.ok).length;\nreturn [{ json: {\n  results,\n  ok_count: ok,\n  failed_count: results.length - ok,\n  summary_text: text.join('\\n'),\n  summary_html: html.join('\\n'),\n} }];"
+      },
+      "id": "d4000000-0000-4000-8000-000000000036",
+      "name": "Summarize Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Start').first().json.chat_id }}",
+        "text": "=📣 <b>Publishing results</b>\n\n{{ $json.summary_html }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "d4000000-0000-4000-8000-000000000037",
+      "name": "Send Results Card",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1140,
+        20
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "38-0",
+              "name": "results",
+              "value": "={{ $('Summarize Results').item.json.results }}",
+              "type": "array"
+            },
+            {
+              "id": "38-1",
+              "name": "ok_count",
+              "value": "={{ $('Summarize Results').item.json.ok_count }}",
+              "type": "number"
+            },
+            {
+              "id": "38-2",
+              "name": "failed_count",
+              "value": "={{ $('Summarize Results').item.json.failed_count }}",
+              "type": "number"
+            },
+            {
+              "id": "38-3",
+              "name": "summary_text",
+              "value": "={{ $('Summarize Results').item.json.summary_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4000000-0000-4000-8000-000000000038",
+      "name": "Return",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1400,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Plan Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Posts": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Summarize Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route by Platform",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Platform": {
+      "main": [
+        [
+          {
+            "node": "Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Media Type",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Create Container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolve Refresh Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skipped": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Media Type": {
+      "main": [
+        [
+          {
+            "node": "FB Post Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Post Photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Post Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Post Video": {
+      "main": [
+        [
+          {
+            "node": "FB Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Post Photo": {
+      "main": [
+        [
+          {
+            "node": "FB Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Post Text": {
+      "main": [
+        [
+          {
+            "node": "FB Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "FB Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Result": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "FB Failed": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Create Container": {
+      "main": [
+        [
+          {
+            "node": "IG Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Wait 10s": {
+      "main": [
+        [
+          {
+            "node": "IG Check Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Check Container": {
+      "main": [
+        [
+          {
+            "node": "IG Ready?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Ready?": {
+      "main": [
+        [
+          {
+            "node": "IG Publish",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Failed or Timed Out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Failed or Timed Out?": {
+      "main": [
+        [
+          {
+            "node": "IG Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Wait 10s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Publish": {
+      "main": [
+        [
+          {
+            "node": "IG Get Permalink",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IG Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Get Permalink": {
+      "main": [
+        [
+          {
+            "node": "IG Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Result": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IG Failed": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Refresh Token": {
+      "main": [
+        [
+          {
+            "node": "Refresh TikTok Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh TikTok Token": {
+      "main": [
+        [
+          {
+            "node": "Persist Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist Tokens": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Measure Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Measure Video": {
+      "main": [
+        [
+          {
+            "node": "TikTok Init Upload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Init Upload": {
+      "main": [
+        [
+          {
+            "node": "Reattach Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reattach Video": {
+      "main": [
+        [
+          {
+            "node": "TikTok Upload Bytes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Upload Bytes": {
+      "main": [
+        [
+          {
+            "node": "TikTok Wait 15s",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Wait 15s": {
+      "main": [
+        [
+          {
+            "node": "TikTok Fetch Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Fetch Status": {
+      "main": [
+        [
+          {
+            "node": "TikTok Published?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Published?": {
+      "main": [
+        [
+          {
+            "node": "TikTok Result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Failed or Timed Out?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Failed or Timed Out?": {
+      "main": [
+        [
+          {
+            "node": "TikTok Failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "TikTok Wait 15s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Result": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TikTok Failed": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize Results": {
+      "main": [
+        [
+          {
+            "node": "Send Results Card",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Results Card": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
