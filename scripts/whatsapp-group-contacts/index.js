@@ -14,6 +14,7 @@
  * The session is saved in ./.wwebjs_auth so later runs don't ask again.
  */
 
+process.noDeprecation = true; // hide library deprecation notices from end users
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -134,7 +135,7 @@ async function exportGroup(client, group) {
 		.concat(rows.map((r) => header.map((h) => csvEscape(r[h])).join(',')))
 		.join('\n');
 
-	const outPath = path.resolve(OUT_ARG || `${safeFileName(chat.name)}.csv`);
+	const outPath = OUT_ARG ? path.resolve(OUT_ARG) : path.join(BASE_DIR, `${safeFileName(chat.name)}.csv`);
 	fs.writeFileSync(outPath, '﻿' + csv + '\n', 'utf8'); // BOM so Excel reads UTF-8
 	const withNumber = rows.filter((r) => r.number).length;
 	console.log(`Wrote ${rows.length} members to ${outPath} (${withNumber} with a phone number).`);
@@ -143,11 +144,70 @@ async function exportGroup(client, group) {
 	}
 }
 
+// When packaged into an executable, keep the login and CSV files next to the
+// executable instead of inside the read-only bundle.
+const IS_PACKAGED = Boolean(process.pkg);
+const BASE_DIR = IS_PACKAGED ? path.dirname(process.execPath) : __dirname;
+
+// The packaged executable does not ship a browser, so use the one already on
+// the machine. Override with the WA_BROWSER environment variable if needed.
+function findBrowser() {
+	if (process.env.WA_BROWSER) return process.env.WA_BROWSER;
+	if (!IS_PACKAGED) return undefined; // dev mode: use the Chromium puppeteer downloaded
+	const env = process.env;
+	const candidates =
+		process.platform === 'win32'
+			? [
+					[env['PROGRAMFILES'], 'Google', 'Chrome', 'Application', 'chrome.exe'],
+					[env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe'],
+					[env['LOCALAPPDATA'], 'Google', 'Chrome', 'Application', 'chrome.exe'],
+					[env['PROGRAMFILES(X86)'], 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+					[env['PROGRAMFILES'], 'Microsoft', 'Edge', 'Application', 'msedge.exe'],
+					[env['PROGRAMFILES'], 'BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'],
+				]
+			: process.platform === 'darwin'
+				? [
+						['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'],
+						['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'],
+						['/Applications/Chromium.app/Contents/MacOS/Chromium'],
+					]
+				: [
+						['/usr/bin/google-chrome'],
+						['/usr/bin/google-chrome-stable'],
+						['/usr/bin/chromium'],
+						['/usr/bin/chromium-browser'],
+						['/usr/bin/microsoft-edge'],
+					];
+	for (const parts of candidates) {
+		if (parts.some((x) => !x)) continue;
+		const candidate = path.join(...parts);
+		if (fs.existsSync(candidate)) return candidate;
+	}
+	return null;
+}
+
+async function pauseBeforeExit() {
+	if (IS_PACKAGED && process.stdin.isTTY && GROUP_ARG === undefined && !LIST_ONLY) {
+		await ask('\nPress Enter to close this window...');
+	}
+}
+
 // ---------- main ----------
+const browserPath = findBrowser();
+if (browserPath === null) {
+	console.error(
+		'No Chrome, Edge or Brave browser found. Install Google Chrome, or set the\n' +
+			'WA_BROWSER environment variable to the full path of a Chromium-based browser.',
+	);
+	pauseBeforeExit().then(() => process.exit(1));
+	return;
+}
 const client = new Client({
-	authStrategy: new LocalAuth({ dataPath: path.join(__dirname, '.wwebjs_auth') }),
+	authStrategy: new LocalAuth({ dataPath: path.join(BASE_DIR, '.wwebjs_auth') }),
+	webVersionCache: { type: 'local', path: path.join(BASE_DIR, '.wwebjs_cache') },
 	puppeteer: {
 		headless: true,
+		executablePath: browserPath || undefined,
 		args: ['--no-sandbox', '--disable-setuid-sandbox'],
 	},
 });
@@ -160,7 +220,7 @@ client.on('qr', (qr) => {
 client.on('authenticated', () => console.log('Authenticated.'));
 client.on('auth_failure', (msg) => {
 	console.error('Authentication failed:', msg);
-	process.exit(1);
+	pauseBeforeExit().then(() => process.exit(1));
 });
 
 client.on('ready', async () => {
@@ -189,11 +249,12 @@ client.on('ready', async () => {
 		exitCode = 1;
 	} finally {
 		await client.destroy().catch(() => {});
+		await pauseBeforeExit();
 		process.exit(exitCode);
 	}
 });
 
 client.initialize().catch((err) => {
 	console.error('Could not start WhatsApp Web client:', err && err.message ? err.message : err);
-	process.exit(1);
+	pauseBeforeExit().then(() => process.exit(1));
 });

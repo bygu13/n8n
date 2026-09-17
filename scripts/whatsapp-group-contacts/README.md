@@ -50,3 +50,21 @@ The file is UTF-8 with a BOM so Excel opens it with the right characters.
 Since 2025 WhatsApp hides phone numbers of some non-contacts behind an internal
 id (`...@lid`). The script tries to resolve those to numbers; when it can't, the
 `number` column is empty and the `id` column keeps the internal id.
+
+## Windows executable (no Node needed)
+
+A ready-made build is in `release/WhatsAppGroupExport-windows.zip`. Unzip it,
+double-click `WhatsAppGroupExport.exe`, scan the QR code and pick a group.
+See `release/README.txt` for details. The exe does not ship a browser; it uses
+the Chrome, Edge or Brave already installed on the PC (Edge comes with Windows).
+Set the `WA_BROWSER` environment variable to a browser path to override.
+
+To rebuild it:
+
+```bash
+npm install
+npm run build:win      # writes dist/WhatsAppGroupExport.exe
+```
+
+The exe is unsigned, so Windows SmartScreen shows a warning on first launch
+("More info" > "Run anyway").

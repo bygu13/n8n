@@ -4,14 +4,32 @@
   "private": true,
   "description": "Export the members of a WhatsApp group to CSV using whatsapp-web.js",
   "main": "index.js",
-  "bin": { "whatsapp-group-contacts": "./index.js" },
+  "bin": {
+    "whatsapp-group-contacts": "./index.js"
+  },
   "scripts": {
     "start": "node index.js",
-    "list": "node index.js --list"
+    "list": "node index.js --list",
+    "build:win": "pkg . --targets node22-win-x64 --output dist/WhatsAppGroupExport.exe",
+    "build:linux": "pkg . --targets node22-linux-x64 --output dist/whatsapp-group-export"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.31.0"
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "^6.6.0"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/whatsapp-web.js/src/**/*",
+      "node_modules/puppeteer-core/lib/**/*",
+      "node_modules/puppeteer/lib/**/*",
+      "node_modules/puppeteer/package.json",
+      "node_modules/puppeteer-core/package.json"
+    ]
   }
 }
