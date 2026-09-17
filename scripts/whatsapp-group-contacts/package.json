@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-group-contacts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Export the members of a WhatsApp group to CSV using whatsapp-web.js",
+  "main": "index.js",
+  "bin": { "whatsapp-group-contacts": "./index.js" },
+  "scripts": {
+    "start": "node index.js",
+    "list": "node index.js --list"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.31.0"
+  }
+}
